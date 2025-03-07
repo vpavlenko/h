@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Embeddings Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            max-width: 100%;
+            margin: 0 auto;
+            height: 90vh;
+        }
+        .controls {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 18%;
+            min-width: 200px;
+            overflow-y: auto;
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+        }
+        .control-row {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .search-box {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            width: 100%;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .search-box button {
+            margin-top: 5px;
+        }
+        #canvas-container {
+            position: relative;
+            flex-grow: 1;
+            height: 100%;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        select, button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            max-width: 300px;
+            word-break: break-all;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #666;
+        }
+        #stats {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .legend {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+        .legend-shape {
+            width: 20px;
+            height: 20px;
+            position: relative;
+            margin-right: 6px;
+        }
+        .legend-shape canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        .radio-option input {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <h1>2D Embeddings Viewer</h1>
+            
+            <div class="control-row">
+                <label>Select Embedding Method:</label>
+                <div class="radio-group" id="embedding-methods">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <label for="point-size">Point Size:</label>
+                <input type="range" id="point-size" min="1" max="10" value="4" style="width: 100%;">
+                
+                <button id="toggle-labels">Toggle Labels</button>
+            </div>
+            
+            <div class="control-row">
+                <div class="search-box">
+                    <label for="search-input">Search/Filter:</label>
+                    <input type="text" id="search-input" placeholder="Type to highlight matching points...">
+                    <button id="clear-search">Clear</button>
+                </div>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-groups" checked>
+                <label for="show-groups">Show Group Colors</label>
+            </div>
+            
+            <div id="stats"></div>
+            
+            <div class="legend" id="group-legend"></div>
+        </div>
+        
+        <div id="canvas-container">
+            <canvas id="plot-canvas"></canvas>
+            <div class="loading">Loading embeddings...</div>
+        </div>
+    </div>
+    
+    <script>
+        // Main variables
+        let embeddings = {};
+        let currentEmbedding = '';
+        let pointSize = 4;
+        let showLabels = false;
+        let hoveredPoint = null;
+        let searchText = '';
+        let showGroups = true;
+        
+        // Group definitions and colors
+        const groups = [
+            "yiruma", "joplin", "winston", "heller", "lanz", "glass", "habanera", 
+            "tango", "bwv", "malaguena", "saygun", "gershwin", "minecraft", 
+            "lehrer", "heroes", "tariverd", "anthem", "six-christmas", "foster", 
+            "okawari", "nujabes", "greek", "copland", "alcocer", "doga", "antheil", "rollin", "schmitz", "paterlini", "chopin", 'mozart', 'costlow', 'tchaik', 'skorik', 'blasio', 'clayderman', 'boogie'
+        ];
+        
+        // Function to generate a color based on index
+        function getColorForIndex(index) {
+            // List of distinct colors generated programmatically
+            const hue = (index * 137.5) % 360;
+            return `hsl(${hue}, 70%, 50%)`;
+        }
+        
+        // Define shapes for different groups
+        const shapes = ['circle', 'square', 'triangle', 'diamond', 'pentagon', 'hexagon', 'star'];
+        
+        // Create a map of groups to colors and shapes
+        const groupColorMap = {};
+        const groupShapeMap = {};
+        groups.forEach((group, index) => {
+            groupColorMap[group] = getColorForIndex(index);
+            groupShapeMap[group] = shapes[index % shapes.length];
+        });
+        
+        // Function to draw different shapes
+        function drawShape(ctx, shape, x, y, size) {
+            ctx.beginPath();
+            
+            switch(shape) {
+                case 'square':
+                    ctx.rect(x - size, y - size, size * 2, size * 2);
+                    break;
+                    
+                case 'triangle':
+                    ctx.moveTo(x, y - size);
+                    ctx.lineTo(x + size, y + size);
+                    ctx.lineTo(x - size, y + size);
+                    ctx.closePath();
+                    break;
+                    
+                case 'diamond':
+                    ctx.moveTo(x, y - size);
+                    ctx.lineTo(x + size, y);
+                    ctx.lineTo(x, y + size);
+                    ctx.lineTo(x - size, y);
+                    ctx.closePath();
+                    break;
+                    
+                case 'pentagon':
+                    for (let i = 0; i < 5; i++) {
+                        const angle = (Math.PI * 2 * i / 5) - Math.PI/2;
+                        const px = x + size * Math.cos(angle);
+                        const py = y + size * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    break;
+                    
+                case 'hexagon':
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (Math.PI * 2 * i / 6);
+                        const px = x + size * Math.cos(angle);
+                        const py = y + size * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    break;
+                    
+                case 'star':
+                    for (let i = 0; i < 10; i++) {
+                        const angle = (Math.PI * 2 * i / 10) - Math.PI/2;
+                        const radius = i % 2 === 0 ? size : size/2;
+                        const px = x + radius * Math.cos(angle);
+                        const py = y + radius * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    break;
+                    
+                case 'circle':
+                default:
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    break;
+            }
+            
+            ctx.fill();
+        }
+        
+        // DOM elements
+        const canvas = document.getElementById('plot-canvas');
+        const ctx = canvas.getContext('2d');
+        const embeddingMethodsContainer = document.getElementById('embedding-methods');
+        const pointSizeSlider = document.getElementById('point-size');
+        const toggleLabelsBtn = document.getElementById('toggle-labels');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search');
+        const showGroupsCheckbox = document.getElementById('show-groups');
+        const groupLegend = document.getElementById('group-legend');
+        const statsElement = document.getElementById('stats');
+        const loadingElement = document.querySelector('.loading');
+        
+        // Add a new variable to track hovered group
+        let hoveredGroup = null;
+        
+        // Create legend for groups
+        function createLegend() {
+            groupLegend.innerHTML = '';
+            groups.forEach(group => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                
+                // Shape indicator (includes color information)
+                const shapeContainer = document.createElement('div');
+                shapeContainer.className = 'legend-shape';
+                
+                const shapeCanvas = document.createElement('canvas');
+                shapeCanvas.width = 20;
+                shapeCanvas.height = 20;
+                const shapeCtx = shapeCanvas.getContext('2d');
+                
+                // Draw the shape in the legend
+                shapeCtx.fillStyle = groupColorMap[group];
+                drawShape(shapeCtx, groupShapeMap[group], 10, 10, 7);
+                
+                shapeContainer.appendChild(shapeCanvas);
+                
+                // Label
+                const label = document.createElement('span');
+                label.textContent = group;
+                
+                // Assemble the legend item
+                legendItem.appendChild(shapeContainer);
+                legendItem.appendChild(label);
+                groupLegend.appendChild(legendItem);
+                
+                // Add hover event listeners to highlight all points in this group
+                legendItem.addEventListener('mouseenter', () => {
+                    hoveredGroup = group;
+                    drawPlot();
+                });
+                
+                legendItem.addEventListener('mouseleave', () => {
+                    hoveredGroup = null;
+                    drawPlot();
+                });
+            });
+        }
+        
+        // Find which group a point belongs to
+        function getPointGroup(key) {
+            const lowerKey = key.toLowerCase();
+            for (const group of groups) {
+                if (lowerKey.includes(group.toLowerCase())) {
+                    return group;
+                }
+            }
+            return null;
+        }
+        
+        // Load embeddings from JSON file
+        async function loadEmbeddings() {
+            try {
+                const response = await fetch('embeddings.json');
+                embeddings = await response.json();
+                
+                // Populate radio buttons with embedding methods
+                const methods = Object.keys(embeddings);
+                methods.forEach((method, index) => {
+                    const radioOption = document.createElement('div');
+                    radioOption.className = 'radio-option';
+                    
+                    const radioInput = document.createElement('input');
+                    radioInput.type = 'radio';
+                    radioInput.name = 'embedding-method';
+                    radioInput.id = `method-${method}`;
+                    radioInput.value = method;
+                    radioInput.checked = index === 0; // Select first method by default
+                    
+                    const radioLabel = document.createElement('label');
+                    radioLabel.htmlFor = `method-${method}`;
+                    radioLabel.textContent = method;
+                    
+                    radioOption.appendChild(radioInput);
+                    radioOption.appendChild(radioLabel);
+                    embeddingMethodsContainer.appendChild(radioOption);
+                    
+                    // Add event listener
+                    radioInput.addEventListener('change', () => {
+                        if (radioInput.checked) {
+                            currentEmbedding = method;
+                            updateStats();
+                            drawPlot();
+                        }
+                    });
+                });
+                
+                // Set initial embedding to first method
+                if (methods.length > 0) {
+                    currentEmbedding = methods[0];
+                }
+                
+                // Create color legend
+                createLegend();
+                
+                // Resize canvas to match container
+                resizeCanvas();
+                
+                updateStats();
+                drawPlot();
+                
+                // Hide loading message
+                loadingElement.style.display = 'none';
+            } catch (error) {
+                console.error('Error loading embeddings:', error);
+                loadingElement.textContent = 'Error loading embeddings. Make sure to run the Python script first.';
+            }
+        }
+        
+        // Function to resize canvas
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        
+        // Draw the plot
+        function drawPlot() {
+            if (!currentEmbedding || !embeddings[currentEmbedding]) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const points = embeddings[currentEmbedding].points;
+            const pointKeys = Object.keys(points);
+            
+            // Count matching points
+            let matchCount = 0;
+            
+            // Track groups for stats
+            const groupCounts = {};
+            groups.forEach(group => { groupCounts[group] = 0; });
+            
+            // Draw points
+            pointKeys.forEach(key => {
+                const [x, y] = points[key];
+                const isMatch = searchText && key.toLowerCase().includes(searchText.toLowerCase());
+                const pointGroup = getPointGroup(key);
+                const isInHoveredGroup = hoveredGroup && pointGroup === hoveredGroup;
+                
+                // Determine point size - use radius 1 for ungrouped points
+                const actualPointSize = pointGroup ? pointSize : 1;
+                
+                if (pointGroup) {
+                    groupCounts[pointGroup]++;
+                }
+                
+                if (isMatch) matchCount++;
+                
+                // Set fill color based on hover states, search match, and group
+                if (hoveredPoint === key) {
+                    ctx.fillStyle = '#ff6b6b'; // Individual point hover
+                    drawShape(ctx, pointGroup ? groupShapeMap[pointGroup] : 'circle', x, y, actualPointSize * 1.5);
+                } else if (isInHoveredGroup) {
+                    // Highlight points in the hovered group
+                    ctx.fillStyle = groupColorMap[pointGroup];
+                    drawShape(ctx, groupShapeMap[pointGroup], x, y, actualPointSize * 1.3);
+                } else if (isMatch) {
+                    ctx.fillStyle = '#f39c12'; // Search match
+                    drawShape(ctx, pointGroup ? groupShapeMap[pointGroup] : 'circle', x, y, actualPointSize * 1.2);
+                } else if (hoveredGroup) {
+                    // Dim other points when a group is hovered
+                    ctx.fillStyle = showGroups && pointGroup ? 
+                                    `hsla(${groupColorMap[pointGroup].match(/\d+/)[0]}, 70%, 50%, 0.2)` : 
+                                    'rgba(66, 133, 244, 0.2)';
+                    drawShape(ctx, pointGroup ? groupShapeMap[pointGroup] : 'circle', x, y, actualPointSize);
+                } else if (showGroups && pointGroup) {
+                    ctx.fillStyle = groupColorMap[pointGroup]; // Group color
+                    drawShape(ctx, groupShapeMap[pointGroup], x, y, actualPointSize);
+                } else {
+                    ctx.fillStyle = '#4285F4'; // Normal
+                    drawShape(ctx, 'circle', x, y, actualPointSize);
+                }
+                
+                // Draw label if enabled, if point matches search, if hovered, or if in hovered group
+                if (showLabels || hoveredPoint === key || isMatch || isInHoveredGroup) {
+                    ctx.fillStyle = isMatch ? '#d35400' : 
+                                  (isInHoveredGroup ? groupColorMap[pointGroup] : 
+                                  (pointGroup && showGroups ? groupColorMap[pointGroup] : '#333'));
+                    ctx.font = (isMatch || isInHoveredGroup) ? 'bold 11px Arial' : '10px Arial';
+                    ctx.fillText(key, x + actualPointSize + 2, y + 4);
+                }
+            });
+            
+            // Update search count
+            updateDetailedStats(pointKeys.length, matchCount, groupCounts);
+        }
+        
+        // Update detailed stats information
+        function updateDetailedStats(totalPoints, matchCount, groupCounts) {
+            let statText = `Current method: ${currentEmbedding} | Total points: ${totalPoints}`;
+            
+            if (searchText) {
+                statText += ` | Matches: ${matchCount}`;
+            }
+            
+            // Add group counts to stats if relevant
+            let groupText = '';
+            for (const group in groupCounts) {
+                if (groupCounts[group] > 0) {
+                    groupText += `${group}: ${groupCounts[group]}, `;
+                }
+            }
+            
+            // Remove trailing comma and space
+            if (groupText) {
+                groupText = groupText.slice(0, -2);
+                statText += ` | Groups: ${groupText}`;
+            }
+            
+            statsElement.textContent = statText;
+        }
+        
+        // Update stats information
+        function updateStats() {
+            if (!currentEmbedding || !embeddings[currentEmbedding]) return;
+            
+            const points = embeddings[currentEmbedding].points;
+            const pointCount = Object.keys(points).length;
+            
+            // Count matches if searching
+            let matchCount = 0;
+            if (searchText) {
+                matchCount = Object.keys(points).filter(key => 
+                    key.toLowerCase().includes(searchText.toLowerCase())
+                ).length;
+            }
+            
+            // Count groups
+            const groupCounts = {};
+            groups.forEach(group => { groupCounts[group] = 0; });
+            
+            Object.keys(points).forEach(key => {
+                const pointGroup = getPointGroup(key);
+                if (pointGroup) {
+                    groupCounts[pointGroup]++;
+                }
+            });
+            
+            updateDetailedStats(pointCount, matchCount, groupCounts);
+        }
+        
+        // Handle mouse move to detect hovering on points (simplified version without tooltip)
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (!currentEmbedding || !embeddings[currentEmbedding]) return;
+            
+            const points = embeddings[currentEmbedding].points;
+            let foundPoint = null;
+            let minDist = pointSize * 3; // Detection radius
+            
+            // Find closest point
+            Object.keys(points).forEach(key => {
+                const [px, py] = points[key];
+                const dist = Math.sqrt((px - x) ** 2 + (py - y) ** 2);
+                
+                if (dist < minDist) {
+                    minDist = dist;
+                    foundPoint = key;
+                }
+            });
+            
+            // Update hovered point and redraw if needed
+            if (hoveredPoint !== foundPoint) {
+                hoveredPoint = foundPoint;
+                drawPlot();
+            }
+        }
+        
+        // Handle canvas click to open link
+        function handleCanvasClick() {
+            if (hoveredPoint) {
+                window.open(`https://rawl.rocks/f/${hoveredPoint}`, '_blank');
+            }
+        }
+        
+        // Handle search input
+        function handleSearch() {
+            searchText = searchInput.value.trim();
+            updateStats();
+            drawPlot();
+        }
+        
+        // Clear search
+        function clearSearch() {
+            searchInput.value = '';
+            searchText = '';
+            updateStats();
+            drawPlot();
+        }
+        
+        // Toggle group colors
+        function toggleGroupColors() {
+            showGroups = showGroupsCheckbox.checked;
+            drawPlot();
+        }
+        
+        // Event listeners
+        pointSizeSlider.addEventListener('input', () => {
+            pointSize = parseInt(pointSizeSlider.value);
+            drawPlot();
+        });
+        
+        toggleLabelsBtn.addEventListener('click', () => {
+            showLabels = !showLabels;
+            toggleLabelsBtn.textContent = showLabels ? 'Hide Labels' : 'Show Labels';
+            drawPlot();
+        });
+        
+        showGroupsCheckbox.addEventListener('change', toggleGroupColors);
+        
+        searchInput.addEventListener('input', handleSearch);
+        clearSearchBtn.addEventListener('click', clearSearch);
+        
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('click', handleCanvasClick);
+        
+        // Initialize the application
+        loadEmbeddings();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            drawPlot();
+        });
+    </script>
+</body>
+</html> 

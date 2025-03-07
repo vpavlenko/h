@@ -37,6 +37,21 @@ embedding_methods = {
     "UMAP_n50": lambda data: umap.UMAP(
         n_neighbors=50, min_dist=0.1, metric="cosine"
     ).fit_transform(data),
+    "UMAP_n20": lambda data: umap.UMAP(
+        n_neighbors=20, min_dist=0.1, metric="cosine"
+    ).fit_transform(data),
+    "UMAP_n40": lambda data: umap.UMAP(
+        n_neighbors=40, min_dist=0.1, metric="cosine"
+    ).fit_transform(data),
+    "UMAP_n60": lambda data: umap.UMAP(
+        n_neighbors=60, min_dist=0.1, metric="cosine"
+    ).fit_transform(data),
+    "UMAP_n80": lambda data: umap.UMAP(
+        n_neighbors=80, min_dist=0.1, metric="cosine"
+    ).fit_transform(data),
+    "UMAP_n100": lambda data: umap.UMAP(
+        n_neighbors=100, min_dist=0.1, metric="cosine"
+    ).fit_transform(data),
     "UMAP_euclidean": lambda data: umap.UMAP(metric="euclidean").fit_transform(data),
     "UMAP_correlation": lambda data: umap.UMAP(metric="correlation").fit_transform(
         data
@@ -52,6 +67,18 @@ embedding_methods = {
     ).fit_transform(data),
     "tSNE_p100": lambda data: TSNE(
         n_components=2, perplexity=100, metric="cosine"
+    ).fit_transform(data),
+    "tSNE_p20": lambda data: TSNE(
+        n_components=2, perplexity=20, metric="cosine"
+    ).fit_transform(data),
+    "tSNE_p40": lambda data: TSNE(
+        n_components=2, perplexity=40, metric="cosine"
+    ).fit_transform(data),
+    "tSNE_p60": lambda data: TSNE(
+        n_components=2, perplexity=60, metric="cosine"
+    ).fit_transform(data),
+    "tSNE_p80": lambda data: TSNE(
+        n_components=2, perplexity=80, metric="cosine"
     ).fit_transform(data),
     "PCA": lambda data: PCA(n_components=2).fit_transform(data),
     "MDS_euclidean": lambda data: MDS(n_components=2, metric=True).fit_transform(data),
@@ -70,14 +97,14 @@ embedding_methods = {
     "Augmented_NMF": lambda data: NMF(
         n_components=2, init="random", random_state=0
     ).fit_transform(data),
-    "Binary_Weighted_1.5x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
-        np.hstack([data[:, :12], 1.5 * data[:, 12:]])
+    "Binary_Weighted_0.05x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
+        np.hstack([data[:, :12], 0.05 * data[:, 12:]])
     ),
-    "Binary_Weighted_2x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
-        np.hstack([data[:, :12], 2.0 * data[:, 12:]])
+    "Binary_Weighted_0.1x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
+        np.hstack([data[:, :12], 0.1 * data[:, 12:]])
     ),
-    "Binary_Weighted_3x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
-        np.hstack([data[:, :12], 3.0 * data[:, 12:]])
+    "Binary_Weighted_0.2x": lambda data: umap.UMAP(n_neighbors=15).fit_transform(
+        np.hstack([data[:, :12], 0.2 * data[:, 12:]])
     ),
 }
 
@@ -100,13 +127,22 @@ print("Generating embeddings using original normalized vectors...")
 for method_name in [
     "UMAP_n5",
     "UMAP_n15",
+    "UMAP_n20",
     "UMAP_n30",
+    "UMAP_n40",
     "UMAP_n50",
+    "UMAP_n60",
+    "UMAP_n80",
+    "UMAP_n100",
     "UMAP_euclidean",
     "UMAP_correlation",
     "tSNE_p5",
+    "tSNE_p20",
     "tSNE_p30",
+    "tSNE_p40",
     "tSNE_p50",
+    "tSNE_p60",
+    "tSNE_p80",
     "tSNE_p100",
     "PCA",
     "MDS_euclidean",
@@ -143,9 +179,9 @@ for method_name in [
     "Augmented_tSNE",
     "Augmented_UMAP_cosine",
     "Augmented_NMF",
-    "Binary_Weighted_1.5x",
-    "Binary_Weighted_2x",
-    "Binary_Weighted_3x",
+    "Binary_Weighted_0.05x",
+    "Binary_Weighted_0.1x",
+    "Binary_Weighted_0.2x",
 ]:
     method_func = embedding_methods[method_name]
     print(f"  - {method_name}...")
